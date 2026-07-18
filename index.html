@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InvoiceForge &mdash; Offline Invoice Studio</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ============ APP SHELL ============ -->
+<div id="app">
+
+  <!-- Mobile top bar -->
+  <header class="mobile-bar">
+    <button id="hamburgerBtn" class="icon-btn" aria-label="Open menu">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </button>
+    <div class="mobile-brand">
+      <span class="brand-mark">IF</span>
+      <span>InvoiceForge</span>
+    </div>
+    <button id="mobileThemeToggle" class="icon-btn" aria-label="Toggle theme">
+      <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 0 1-4.4 2.26 5.403 5.403 0 0 1-5.4-5.4c0-1.81.87-3.41 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+    </button>
+  </header>
+
+  <!-- Sidebar -->
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-brand">
+      <span class="brand-mark">IF</span>
+      <div>
+        <div class="brand-name">InvoiceForge</div>
+        <div class="brand-sub">Offline Invoice Studio</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-view="dashboard">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+        <span>Dashboard</span>
+      </button>
+      <button class="nav-item" data-view="invoices">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M6 2h9l5 5v15a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm8 1.5V8h4.5L14 3.5zM8 12h8v1.5H8V12zm0 4h8v1.5H8V16zm0-8h4v1.5H8V8z"/></svg>
+        <span>Invoices</span>
+      </button>
+      <button class="nav-item" data-view="editor">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 5v14m-7-7h14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+        <span>New Invoice</span>
+      </button>
+      <button class="nav-item" data-view="settings">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19.14 12.94c.04-.31.06-.62.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.63l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.03 7.03 0 0 0-1.62-.94l-.36-2.54A.5.5 0 0 0 14 2h-4a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96a.5.5 0 0 0-.6.22L2.61 8.48a.5.5 0 0 0 .12.63l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.63l1.92 3.32c.14.24.42.32.66.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.28.27.42.5.42h4c.24 0 .46-.14.5-.42l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.24.1.52.02.66-.22l1.92-3.32a.5.5 0 0 0-.12-.63l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg>
+        <span>Settings</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button id="themeToggle" class="ghost-btn full">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 0 1-4.4 2.26 5.403 5.403 0 0 1-5.4-5.4c0-1.81.87-3.41 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+        <span id="themeToggleLabel">Dark Mode</span>
+      </button>
+      <div class="kbd-hint">Press <kbd>N</kbd> new &middot; <kbd>/</kbd> search</div>
+    </div>
+  </aside>
+  <div id="sidebarOverlay" class="sidebar-overlay"></div>
+
+  <!-- Main content -->
+  <main id="mainContent" class="main-content">
+
+    <!-- ===================== DASHBOARD ===================== -->
+    <section id="view-dashboard" class="view active">
+      <div class="view-header">
+        <div>
+          <h1>Dashboard</h1>
+          <p class="muted">A quick pulse on your billing activity.</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn ghost" data-action="export-json">Export</button>
+          <button class="btn ghost" data-action="import-json">Import</button>
+          <button class="btn primary" data-action="new-invoice">+ New Invoice</button>
+        </div>
+      </div>
+
+      <div class="stat-grid" id="statGrid"></div>
+
+      <div class="dash-grid">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Quick actions</h3>
+          </div>
+          <div class="quick-actions" id="quickActions"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Recent invoices</h3>
+            <button class="link-btn" data-view-link="invoices">View all</button>
+          </div>
+          <div id="recentInvoices" class="recent-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== INVOICE LIST ===================== -->
+    <section id="view-invoices" class="view">
+      <div class="view-header">
+        <div>
+          <h1>Invoices</h1>
+          <p class="muted">Search, filter and manage every invoice you've created.</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn primary" data-action="new-invoice">+ New Invoice</button>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg>
+          <input type="text" id="searchInput" placeholder="Search by invoice # or customer name...">
+        </div>
+        <input type="date" id="filterDate" class="input compact">
+        <select id="filterGst" class="input compact">
+          <option value="all">All (GST + Non-GST)</option>
+          <option value="gst">GST enabled</option>
+          <option value="nogst">GST disabled</option>
+        </select>
+        <select id="filterStatus" class="input compact">
+          <option value="all">All statuses</option>
+          <option value="Draft">Draft</option>
+          <option value="Pending">Pending</option>
+          <option value="Paid">Paid</option>
+          <option value="Cancelled">Cancelled</option>
+        </select>
+        <select id="sortOrder" class="input compact">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+        </select>
+      </div>
+
+      <div id="invoiceTableWrap" class="table-wrap">
+        <table class="data-table" id="invoiceTable">
+          <thead>
+            <tr>
+              <th>Invoice #</th>
+              <th>Customer</th>
+              <th>Date</th>
+              <th>Status</th>
+              <th>GST</th>
+              <th class="right">Amount</th>
+              <th class="right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="invoiceTableBody"></tbody>
+        </table>
+        <div id="invoiceEmptyState" class="empty-state" style="display:none">
+          <svg viewBox="0 0 24 24" width="52" height="52"><path fill="currentColor" d="M6 2h9l5 5v15a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm8 1.5V8h4.5L14 3.5zM8 12h8v1.5H8V12zm0 4h8v1.5H8V16zm0-8h4v1.5H8V8z"/></svg>
+          <h3>No invoices yet</h3>
+          <p>Create your first invoice to see it listed here.</p>
+          <button class="btn primary" data-action="new-invoice">+ New Invoice</button>
+        </div>
+      </div>
+
+      <div class="pagination" id="pagination"></div>
+    </section>
+
+    <!-- ===================== EDITOR (CREATE / EDIT) ===================== -->
+    <section id="view-editor" class="view">
+      <div class="view-header">
+        <div>
+          <h1 id="editorTitle">Create Invoice</h1>
+          <p class="muted">Fill in the details on the left — the invoice updates live on the right.</p>
+        </div>
+        <div class="header-actions">
+          <span id="autosaveStatus" class="autosave-status">Saved</span>
+          <button class="btn ghost" data-action="print-invoice">Print</button>
+          <button class="btn ghost" data-action="download-png">Download PNG</button>
+          <button class="btn primary" data-action="save-invoice">Save Invoice</button>
+        </div>
+      </div>
+
+      <div class="editor-grid">
+        <!-- FORM -->
+        <form id="invoiceForm" class="editor-form" autocomplete="off">
+
+          <div class="form-card">
+            <h3>Invoice details</h3>
+            <div class="grid-3">
+              <label>Invoice Number
+                <input type="text" id="f_invoiceNumber" required>
+              </label>
+              <label>Invoice Date
+                <input type="date" id="f_invoiceDate" required>
+              </label>
+              <label>Due Date
+                <input type="date" id="f_dueDate">
+              </label>
+            </div>
+            <div class="grid-3">
+              <label>Payment Method
+                <select id="f_paymentMethod">
+                  <option>Cash</option>
+                  <option>Bank Transfer</option>
+                  <option>UPI</option>
+                  <option>Cheque</option>
+                  <option>Card</option>
+                  <option>Other</option>
+                </select>
+              </label>
+              <label>Status
+                <select id="f_status">
+                  <option>Draft</option>
+                  <option>Pending</option>
+                  <option>Paid</option>
+                  <option>Cancelled</option>
+                </select>
+              </label>
+              <label>Currency
+                <select id="f_currency">
+                  <option value="INR">₹ INR</option>
+                  <option value="USD">$ USD</option>
+                  <option value="EUR">€ EUR</option>
+                  <option value="GBP">£ GBP</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <h3>Customer information</h3>
+            <div class="grid-2">
+              <label>Customer Name
+                <input type="text" id="f_customerName" required placeholder="e.g. Umesh Kumar, Ooty">
+              </label>
+              <label>Customer Phone
+                <input type="text" id="f_customerPhone" placeholder="Optional">
+              </label>
+            </div>
+            <label>Customer Address
+              <textarea id="f_customerAddress" rows="2" placeholder="Optional"></textarea>
+            </label>
+          </div>
+
+          <div class="form-card">
+            <div class="switch-row">
+              <div>
+                <h3 class="no-margin">Enable GST</h3>
+                <p class="muted small">Adds CGST/SGST calculation and displays GST on the invoice.</p>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="f_gstEnabled">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div id="gstRateRow" class="grid-3" style="display:none">
+              <label>GST % (total)
+                <input type="number" id="f_gstRate" min="0" max="100" step="0.1" value="18">
+              </label>
+              <label>Round Off Total
+                <select id="f_roundOff">
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <div class="switch-row">
+              <div>
+                <h3 class="no-margin">Enable Product Images</h3>
+                <p class="muted small">Allow an image per product line, stored as Base64.</p>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="f_imagesEnabled">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <div class="panel-head">
+              <h3 class="no-margin">Product items</h3>
+              <button type="button" class="btn small ghost" id="addItemBtn">+ Add Item</button>
+            </div>
+            <div id="itemsList" class="items-list"></div>
+          </div>
+
+          <div class="form-card">
+            <h3>Summary inputs</h3>
+            <div class="grid-3">
+              <label>Advance Paid
+                <input type="number" id="f_advancePaid" min="0" step="0.01" value="0">
+              </label>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <h3>Notes &amp; terms</h3>
+            <label>Notes
+              <textarea id="f_notes" rows="2" placeholder="Optional notes for the customer"></textarea>
+            </label>
+            <label>Terms &amp; Conditions
+              <textarea id="f_terms" rows="4" placeholder="One per line"></textarea>
+            </label>
+          </div>
+        </form>
+
+        <!-- LIVE PREVIEW -->
+        <div class="editor-preview">
+          <div class="preview-toolbar">
+            <span class="muted small">Live preview</span>
+          </div>
+          <div class="preview-scroll">
+            <div id="invoicePreview" class="invoice-doc"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== SETTINGS ===================== -->
+    <section id="view-settings" class="view">
+      <div class="view-header">
+        <div>
+          <h1>Settings</h1>
+          <p class="muted">Company profile, branding and app preferences.</p>
+        </div>
+      </div>
+
+      <div class="settings-grid">
+        <div class="form-card">
+          <h3>Company profile</h3>
+          <label>Company Name
+            <input type="text" id="s_companyName">
+          </label>
+          <label>Company Address
+            <textarea id="s_companyAddress" rows="3"></textarea>
+          </label>
+          <div class="grid-2">
+            <label>Phone
+              <input type="text" id="s_companyPhone">
+            </label>
+            <label>Tagline
+              <input type="text" id="s_companyTagline">
+            </label>
+          </div>
+          <label>Company Logo
+            <input type="file" id="s_logoInput" accept="image/*">
+          </label>
+          <div id="logoPreviewWrap" class="logo-preview-wrap">
+            <img id="logoPreview" alt="Company logo preview">
+            <button type="button" class="btn small ghost" id="clearLogoBtn">Remove Logo</button>
+          </div>
+        </div>
+
+        <div class="form-card">
+          <h3>Invoice defaults</h3>
+          <div class="grid-2">
+            <label>Invoice Prefix
+              <input type="text" id="s_invoicePrefix" placeholder="INV-HD">
+            </label>
+            <label>Next Invoice Number
+              <input type="number" id="s_nextNumber" min="1">
+            </label>
+          </div>
+          <div class="grid-2">
+            <label>Default GST %
+              <input type="number" id="s_defaultGstRate" min="0" max="100" step="0.1">
+            </label>
+            <label>Date Format
+              <select id="s_dateFormat">
+                <option value="dd-mm-yyyy">DD-MM-YYYY</option>
+                <option value="mm-dd-yyyy">MM-DD-YYYY</option>
+                <option value="yyyy-mm-dd">YYYY-MM-DD</option>
+              </select>
+            </label>
+          </div>
+          <label>Default Currency
+            <select id="s_defaultCurrency">
+              <option value="INR">₹ INR — Indian Rupee</option>
+              <option value="USD">$ USD — US Dollar</option>
+              <option value="EUR">€ EUR — Euro</option>
+              <option value="GBP">£ GBP — British Pound</option>
+            </select>
+          </label>
+          <label>Default Terms &amp; Conditions
+            <textarea id="s_defaultTerms" rows="4"></textarea>
+          </label>
+        </div>
+
+        <div class="form-card">
+          <h3>Data management</h3>
+          <p class="muted small">Everything is stored locally in this browser via Local Storage. Nothing leaves your device.</p>
+          <div class="btn-row">
+            <button class="btn ghost" data-action="export-json">Export all invoices (JSON)</button>
+            <button class="btn ghost" data-action="import-json">Import invoices (JSON)</button>
+            <button class="btn danger" data-action="clear-all">Erase all data</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-footer">
+        <button class="btn primary" id="saveSettingsBtn">Save Settings</button>
+        <span id="settingsSavedTag" class="autosave-status"></span>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- Hidden file input for import -->
+<input type="file" id="importFileInput" accept="application/json" style="display:none">
+
+<!-- Toasts -->
+<div id="toastContainer" class="toast-container"></div>
+
+<!-- Modal root (confirm dialogs / view invoice) -->
+<div id="modalRoot"></div>
+
+<!-- Loading overlay -->
+<div id="loadingOverlay" class="loading-overlay" style="display:none">
+  <div class="spinner"></div>
+</div>
+
+<!-- Print-only area -->
+<div id="printArea" class="print-area"></div>
+
+<script src="script.js"></script>
+</body>
+</html>
