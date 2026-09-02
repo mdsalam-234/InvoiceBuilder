@@ -160,7 +160,19 @@
         </div>
       </div>
 
-      <div class="pagination" id="pagination"></div>
+      <div class="pagination-bar">
+        <div class="page-size-control">
+          <label for="pageSizeSelect">Rows per page</label>
+          <select id="pageSizeSelect" class="input compact">
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </div>
+        <div id="paginationSummary" class="pagination-summary"></div>
+        <div class="pagination" id="pagination"></div>
+      </div>
     </section>
 
     <!-- ===================== EDITOR (CREATE / EDIT) ===================== -->
@@ -309,7 +321,27 @@
         <div class="editor-preview">
           <div class="preview-toolbar">
             <span class="muted small">Live preview</span>
+            <div class="preview-toolbar-right">
+              <label for="f_itemsPerPage" class="small muted">Items per printed page</label>
+              <select id="f_itemsPerPage" class="input compact">
+                <option value="10">10</option>
+                <option value="15">15</option>
+                <option value="20">20</option>
+                <option value="25">25</option>
+                <option value="30">30</option>
+                <option value="all">All (single page)</option>
+              </select>
+              <span class="toolbar-divider" aria-hidden="true"></span>
+              <div class="mini-switch-control">
+                <label class="switch mini" for="f_repeatHeader">
+                  <input type="checkbox" id="f_repeatHeader" checked>
+                  <span class="slider"></span>
+                </label>
+                <label for="f_repeatHeader" class="small muted mini-switch-label">Repeat header on every page</label>
+              </div>
+            </div>
           </div>
+          <p class="preview-hint muted small" id="repeatHeaderHint">The company header and customer details repeat at the top of every printed page.</p>
           <div class="preview-scroll">
             <div id="invoicePreview" class="invoice-doc"></div>
           </div>
