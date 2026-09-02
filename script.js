@@ -73,7 +73,7 @@ const State = {
   currentView: 'dashboard',
   editingId: null,          // id of invoice currently open in editor, null = new
   draft: null,              // working copy of the invoice being edited
-  listState: { search: '', date: '', gst: 'all', status: 'all', sort: 'newest', page: 1, pageSize: 8 }
+  listState: { search: '', date: '', gst: 'all', status: 'all', sort: 'newest', page: 1, pageSize: 10 }
 };
 
 function persistInvoices() { Storage.set(STORAGE_KEYS.invoices, State.invoices); }
@@ -487,6 +487,12 @@ const InvoiceList = {
     document.getElementById('sortOrder').addEventListener('change', e => {
       State.listState.sort = e.target.value; this.render();
     });
+    document.getElementById('pageSizeSelect').value = String(State.listState.pageSize);
+    document.getElementById('pageSizeSelect').addEventListener('change', e => {
+      State.listState.pageSize = Number(e.target.value) || 10;
+      State.listState.page = 1;
+      this.render();
+    });
   },
 
   getFiltered() {
@@ -542,6 +548,7 @@ const InvoiceList = {
     if (!State.invoices.length) {
       tbody.innerHTML = '';
       document.getElementById('pagination').innerHTML = '';
+      document.getElementById('paginationSummary').textContent = '';
       bindGlobalActionButtons(document.getElementById('view-invoices'));
       return;
     }
@@ -549,6 +556,7 @@ const InvoiceList = {
     if (!filtered.length) {
       tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state" style="padding:36px 10px">
         ${iconInvoice()}<h3>No matching invoices</h3><p>Try adjusting your search or filters.</p></div></td></tr>`;
+      document.getElementById('paginationSummary').textContent = 'No invoices to show';
     } else {
       tbody.innerHTML = pageItems.map(inv => {
         const t = Calc.totals(inv);
@@ -569,6 +577,13 @@ const InvoiceList = {
           </td>
         </tr>`;
       }).join('');
+    }
+
+    if (filtered.length) {
+      const rangeStart = (curPage - 1) * pageSize + 1;
+      const rangeEnd = Math.min(curPage * pageSize, filtered.length);
+      document.getElementById('paginationSummary').textContent =
+        `Showing ${rangeStart}–${rangeEnd} of ${filtered.length} invoice${filtered.length === 1 ? '' : 's'}`;
     }
 
     // Pagination controls
@@ -666,6 +681,19 @@ const Editor = {
 
     document.getElementById('addItemBtn').addEventListener('click', () => this.addItem());
 
+    document.getElementById('f_itemsPerPage').addEventListener('change', e => {
+      State.draft.itemsPerPage = e.target.value === 'all' ? 'all' : Number(e.target.value);
+      this.updatePreview();
+      this.scheduleAutosave();
+    });
+
+    document.getElementById('f_repeatHeader').addEventListener('change', e => {
+      State.draft.repeatHeader = e.target.checked;
+      this.updateRepeatHeaderHint();
+      this.updatePreview();
+      this.scheduleAutosave();
+    });
+
     document.querySelector('#view-editor [data-action="save-invoice"]').addEventListener('click', () => this.save());
     document.querySelector('#view-editor [data-action="print-invoice"]').addEventListener('click', () => Printer.printInvoice(State.draft));
     document.querySelector('#view-editor [data-action="download-png"]').addEventListener('click', () => PngExporter.download(State.draft));
@@ -687,6 +715,8 @@ const Editor = {
       gstRate: State.settings.defaultGstRate,
       roundOff: 'yes',
       imagesEnabled: false,
+      itemsPerPage: 10,
+      repeatHeader: true,
       advancePaid: 0,
       notes: '',
       terms: State.settings.defaultTerms,
@@ -715,6 +745,8 @@ const Editor = {
     if (!inv) { Toast.show('Invoice not found', 'error'); return; }
     State.editingId = id;
     State.draft = JSON.parse(JSON.stringify(inv));
+    if (!State.draft.itemsPerPage) State.draft.itemsPerPage = 10;
+    if (State.draft.repeatHeader === undefined) State.draft.repeatHeader = true;
     document.getElementById('editorTitle').textContent = `Edit Invoice — ${inv.invoiceNumber}`;
     this.populateForm();
     this.renderItems();
@@ -739,6 +771,9 @@ const Editor = {
     $('f_gstRate').value = d.gstRate;
     $('f_roundOff').value = d.roundOff;
     $('f_imagesEnabled').checked = d.imagesEnabled;
+    $('f_itemsPerPage').value = String(d.itemsPerPage || 10);
+    $('f_repeatHeader').checked = d.repeatHeader !== false;
+    this.updateRepeatHeaderHint();
     $('f_advancePaid').value = d.advancePaid;
     $('f_notes').value = d.notes;
     $('f_terms').value = d.terms;
@@ -981,9 +1016,17 @@ const Editor = {
     Dashboard.render();
   },
 
+  updateRepeatHeaderHint() {
+    const hint = document.getElementById('repeatHeaderHint');
+    if (!hint) return;
+    hint.textContent = document.getElementById('f_repeatHeader').checked
+      ? 'The company header and customer details repeat at the top of every printed page.'
+      : 'The full header appears only on page 1 — later pages show a compact continuation bar instead.';
+  },
+
   /* ---------------- LIVE PREVIEW ---------------- */
   updatePreview() {
-    document.getElementById('invoicePreview').innerHTML = InvoiceDoc.render(State.draft, State.settings);
+    document.getElementById('invoicePreview').innerHTML = InvoiceDoc.renderPagesJoined(State.draft, State.settings);
   }
 };
 
@@ -994,37 +1037,29 @@ const TRANSPARENT_PX = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAA
    tax-invoice template: logo/company header, TAX INVOICE title,
    customer/meta box, itemised table, summary block, amount in
    words, terms & conditions, and a signature footer.
+
+   The product table paginates: each invoice carries its own
+   `itemsPerPage` setting (default 10, chosen on the editor's
+   preview panel). When the item count exceeds that, the table
+   is split across several full "pages" — each repeating the
+   company header/customer details, and only the last page
+   carrying the totals, amount-in-words, and terms — exactly
+   like the uploaded template's "Page 1 of 3 / 2 of 3 / 3 of 3".
    --------------------------------------------------------------- */
 const InvoiceDoc = {
-  render(invoice, settings) {
-    const t = Calc.totals(invoice);
-    const cur = invoice.currency || settings.defaultCurrency;
-    const showImages = !!invoice.imagesEnabled;
+  /* Split the item list into pages according to invoice.itemsPerPage */
+  paginateItems(items, itemsPerPage) {
+    items = items || [];
+    if (!itemsPerPage || itemsPerPage === 'all') return [items];
+    const n = Number(itemsPerPage) || 10;
+    if (items.length === 0) return [[]];
+    const pages = [];
+    for (let i = 0; i < items.length; i += n) pages.push(items.slice(i, i + n));
+    return pages;
+  },
 
-    const rows = (invoice.items || []).map((item, idx) => {
-      const amount = Calc.itemTaxable(item);
-      return `
-      <tr>
-        <td class="center">${idx + 1}</td>
-        <td>
-          <div class="prod-name">${escapeHtml(item.name || 'Untitled item')}</div>
-          ${item.description ? `<div class="prod-desc">${escapeHtml(item.description)}</div>` : ''}
-        </td>
-        ${showImages ? `<td class="center">${item.image ? `<img class="prod-img" src="${item.image}" alt="">` : ''}</td>` : ''}
-        <td class="center">${formatQty(item.qty)} ${escapeHtml(item.unit || '')}</td>
-        <td class="right">${formatMoney(item.rate, cur)}</td>
-        <td class="right">${formatMoney(amount, cur)}</td>
-      </tr>`;
-    }).join('');
-
-    const termsLines = (invoice.terms || '').split('\n').map(l => l.trim()).filter(Boolean);
-
-    const stamp = ['Paid', 'Cancelled', 'Pending'].includes(invoice.status)
-      ? `<div class="doc-status-stamp ${invoice.status}">${invoice.status.toUpperCase()}</div>` : '';
-
+  headerHTML(settings) {
     return `
-      <div class="doc-corner"></div>
-      ${stamp}
       <div class="doc-header">
         <div class="doc-logo-block">
           ${settings.logo ? `<img src="${settings.logo}" alt="Company logo">` : `<div style="font-weight:800;font-size:20px;color:#3D2314">${escapeHtml(settings.companyName)}</div>`}
@@ -1036,9 +1071,11 @@ const InvoiceDoc = {
           ${settings.companyPhone ? `<div class="caddr"><strong>Phone:</strong> ${escapeHtml(settings.companyPhone)}</div>` : ''}
         </div>
       </div>
+      <div class="doc-title">TAX INVOICE</div>`;
+  },
 
-      <div class="doc-title">TAX INVOICE</div>
-
+  metaHTML(invoice, settings) {
+    return `
       <div class="doc-meta">
         <div class="doc-meta-left">
           <div><span class="lbl">CUSTOMER DETAILS</span></div>
@@ -1051,9 +1088,30 @@ const InvoiceDoc = {
           <div><span class="lbl">Date:</span> ${formatDate(invoice.invoiceDate, settings.dateFormat)}</div>
           ${invoice.dueDate ? `<div><span class="lbl">Due:</span> ${formatDate(invoice.dueDate, settings.dateFormat)}</div>` : ''}
           <div><span class="lbl">Payment:</span> ${escapeHtml(invoice.paymentMethod)}</div>
+          <div><span class="lbl">Status:</span> ${escapeHtml(invoice.status)}</div>
         </div>
-      </div>
+      </div>`;
+  },
 
+  rowHTML(item, serialNo, invoice, showImages) {
+    const amount = Calc.itemTaxable(item);
+    const cur = invoice.currency;
+    return `
+      <tr>
+        <td class="center">${serialNo}</td>
+        <td>
+          <div class="prod-name">${escapeHtml(item.name || 'Untitled item')}</div>
+          ${item.description ? `<div class="prod-desc">${escapeHtml(item.description)}</div>` : ''}
+        </td>
+        ${showImages ? `<td class="center">${item.image ? `<img class="prod-img" src="${item.image}" alt="">` : ''}</td>` : ''}
+        <td class="center">${formatQty(item.qty)} ${escapeHtml(item.unit || '')}</td>
+        <td class="right">${formatMoney(item.rate, cur)}</td>
+        <td class="right">${formatMoney(amount, cur)}</td>
+      </tr>`;
+  },
+
+  tableHTML(rowsHtml, showImages) {
+    return `
       <table class="doc-table">
         <thead>
           <tr>
@@ -1065,9 +1123,15 @@ const InvoiceDoc = {
             <th class="right" style="width:100px">Amount</th>
           </tr>
         </thead>
-        <tbody>${rows || `<tr><td colspan="${showImages ? 6 : 5}" class="center" style="color:#888;padding:16px">No items added</td></tr>`}</tbody>
-      </table>
+        <tbody>${rowsHtml || `<tr><td colspan="${showImages ? 6 : 5}" class="center" style="color:#888;padding:16px">No items added</td></tr>`}</tbody>
+      </table>`;
+  },
 
+  summaryHTML(invoice, settings) {
+    const t = Calc.totals(invoice);
+    const cur = invoice.currency || settings.defaultCurrency;
+    const termsLines = (invoice.terms || '').split('\n').map(l => l.trim()).filter(Boolean);
+    return `
       <div class="doc-summary">
         <table>
           <tr><td class="k">Subtotal</td><td class="v">${formatMoney(t.subtotalGross, cur)}</td></tr>
@@ -1090,20 +1154,58 @@ const InvoiceDoc = {
       <div class="doc-terms">
         <h4>TERMS AND CONDITIONS</h4>
         <ol>${termsLines.map(l => `<li>${escapeHtml(l)}</li>`).join('')}</ol>
-      </div>` : ''}
-
-      <div class="doc-footer">
-        <div class="doc-page">Status: ${escapeHtml(invoice.status)}</div>
-        <div class="doc-sign">
-          <div class="line"></div>
-          Authorized Signatory
-        </div>
-      </div>
-    `;
+      </div>` : ''}`;
   },
 
-  renderFull(invoice, settings) {
-    return `<div class="invoice-doc">${this.render(invoice, settings)}</div>`;
+  footerHTML(pageNum, totalPages, isLast) {
+    return `
+      <div class="doc-footer">
+        <div class="doc-page">Page ${pageNum} of ${totalPages}</div>
+        ${isLast ? `<div class="doc-sign"><div class="line"></div>Authorized Signatory</div>` : '<div></div>'}
+      </div>`;
+  },
+
+  /* Compact bar shown on page 2+ instead of the full header when "repeat header" is off */
+  continuedBarHTML(invoice, settings, pageNum, totalPages) {
+    return `
+      <div class="doc-continued-bar">
+        <strong>${escapeHtml(settings.companyName)}</strong>
+        <span>Invoice ${escapeHtml(invoice.invoiceNumber)} &middot; ${escapeHtml(invoice.customerName || '—')} &middot; continued (page ${pageNum} of ${totalPages})</span>
+      </div>`;
+  },
+
+  /* Build an array of complete, ready-to-render page HTML strings */
+  renderPages(invoice, settings) {
+    const showImages = !!invoice.imagesEnabled;
+    const repeatHeader = invoice.repeatHeader !== false; // default true — keeps prior behaviour unless explicitly turned off
+    const chunks = this.paginateItems(invoice.items, invoice.itemsPerPage);
+    const totalPages = chunks.length;
+    const stamp = ['Paid', 'Cancelled', 'Pending'].includes(invoice.status)
+      ? `<div class="doc-status-stamp ${invoice.status}">${invoice.status.toUpperCase()}</div>` : '';
+
+    let serial = 0;
+    return chunks.map((chunk, i) => {
+      const pageNum = i + 1;
+      const isLast = pageNum === totalPages;
+      const isFirst = pageNum === 1;
+      const rowsHtml = chunk.map(item => { serial++; return this.rowHTML(item, serial, invoice, showImages); }).join('');
+      const showFullHeader = isFirst || repeatHeader;
+      return `<div class="invoice-doc">
+        <div class="doc-corner"></div>
+        ${stamp}
+        ${showFullHeader ? `${this.headerHTML(settings)}${this.metaHTML(invoice, settings)}` : this.continuedBarHTML(invoice, settings, pageNum, totalPages)}
+        ${this.tableHTML(rowsHtml, showImages)}
+        ${isLast ? this.summaryHTML(invoice, settings) : ''}
+        ${this.footerHTML(pageNum, totalPages, isLast)}
+      </div>`;
+    });
+  },
+
+  /* All pages stacked, ready to drop into the preview panel, print area, or a PNG export container */
+  renderPagesJoined(invoice, settings) {
+    return this.renderPages(invoice, settings)
+      .map(pageHtml => `<div class="doc-page-sheet">${pageHtml}</div>`)
+      .join('');
   }
 };
 
@@ -1119,6 +1221,7 @@ const InvoiceViewer = {
   open(id) {
     const inv = State.invoices.find(i => i.id === id);
     if (!inv) return;
+    if (!inv.itemsPerPage) inv.itemsPerPage = 10;
     const box = Modal.showHTML(`
       <div class="preview-toolbar" style="margin:-22px -22px 14px;padding:14px 22px;display:flex;justify-content:space-between;align-items:center">
         <strong>${escapeHtml(inv.invoiceNumber)}</strong>
@@ -1130,7 +1233,7 @@ const InvoiceViewer = {
         </div>
       </div>
       <div class="preview-scroll" style="max-height:70vh;margin:0 -22px;padding:20px;background:#efe6d1">
-        ${InvoiceDoc.renderFull(inv, State.settings)}
+        ${InvoiceDoc.renderPagesJoined(inv, State.settings)}
       </div>
     `, true);
     box.querySelector('[data-act="close"]').addEventListener('click', () => Modal.close());
@@ -1147,7 +1250,7 @@ const Printer = {
   printInvoice(invoice) {
     if (!invoice) return;
     const area = document.getElementById('printArea');
-    area.innerHTML = InvoiceDoc.renderFull(invoice, State.settings);
+    area.innerHTML = InvoiceDoc.renderPagesJoined(invoice, State.settings);
     setTimeout(() => window.print(), 60);
   }
 };
@@ -1197,9 +1300,9 @@ const PngExporter = {
     wrapper.style.left = '-10000px';
     wrapper.style.top = '0';
     wrapper.style.background = '#ffffff';
-    wrapper.innerHTML = InvoiceDoc.renderFull(invoice, State.settings);
+    wrapper.innerHTML = `<div class="doc-export-stack">${InvoiceDoc.renderPagesJoined(invoice, State.settings)}</div>`;
     document.body.appendChild(wrapper);
-    const docEl = wrapper.querySelector('.invoice-doc');
+    const docEl = wrapper.querySelector('.doc-export-stack');
 
     try {
       await waitForImages(docEl);
